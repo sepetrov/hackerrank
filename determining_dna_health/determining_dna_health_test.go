@@ -13,6 +13,8 @@ import (
 	"github.com/sepetrov/hackerrank/determining_dna_health"
 )
 
+const bufSize = 1024 * 1024
+
 func TestRun(t *testing.T) {
 	t.Parallel()
 	type out struct {
@@ -59,13 +61,35 @@ func TestRun(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			min, max := determining_dna_health.Run(bufio.NewReaderSize(f, 1024*1024))
+			defer f.Close()
+			min, max := determining_dna_health.Run(bufio.NewReaderSize(f, bufSize))
 
 			if min != tt.out.min {
 				t.Errorf("Run() min = %d, want %d", min, tt.out.min)
 			}
 			if max != tt.out.max {
 				t.Errorf("Run() max = %d, want %d", max, tt.out.max)
+			}
+		})
+	}
+}
+
+func BenchmarkRun(b *testing.B) {
+	for _, f := range []string{
+		"testdata/input.txt",
+		"testdata/input02.txt",
+		"testdata/input07.txt",
+	} {
+		b.Run(f, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				f, err := os.Open(f)
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer f.Close() // In case Run() panics before we can close f.
+				buf := bufio.NewReaderSize(f, bufSize)
+				determining_dna_health.Run(buf)
+				f.Close()
 			}
 		})
 	}
