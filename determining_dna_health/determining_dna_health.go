@@ -17,15 +17,33 @@ import (
 func Run(reader *bufio.Reader) (min int, max int) {
 	min, max = -1, -1
 
+	// Read the total number of genes and healths.
 	n, err := strconv.ParseInt(readLine(reader), 10, 64)
-	genes := newGHSlice(
-		strings.Split(readLine(reader), " "),
-		strings.Split(readLine(reader), " "),
-	)
-	if int64(len(genes)) != n {
-		panic(fmt.Sprintf("got %d genes and health values, want %d", len(genes), n))
+	checkError(err)
+
+	// Read the genes.
+	genes := strings.Split(readLine(reader), " ")
+	if len(genes) != int(n) {
+		panic(fmt.Sprintf("got %d genes, want %d", len(genes), n))
 	}
 
+	// Read the healths.
+	healths := func() []int {
+		var out []int
+		for _, s := range strings.Split(readLine(reader), " ") {
+			i, err := strconv.ParseInt(s, 10, 64)
+			if err != nil {
+				panic(err)
+			}
+			out = append(out, int(i))
+		}
+		return out
+	}()
+	if len(healths) != int(n) {
+		panic(fmt.Sprintf("got %d healths, want %d", len(healths), n))
+	}
+
+	// Read the total number of strands.
 	n, err = strconv.ParseInt(readLine(reader), 10, 64)
 	checkError(err)
 
@@ -33,22 +51,19 @@ func Run(reader *bufio.Reader) (min int, max int) {
 	wg := new(sync.WaitGroup)
 	wg.Add(int(n))
 	go func() {
-		for i := int64(0); i < n; i++ {
-			// first last d
-			line := strings.Split(readLine(reader), " ")
+		for i := 0; i < int(n); i++ {
+			strand := strings.Split(readLine(reader), " ")
 
-			first, err := strconv.ParseInt(line[0], 10, 64)
+			start, err := strconv.ParseInt(strand[0], 10, 64)
 			checkError(err)
 
-			last, err := strconv.ParseInt(line[1], 10, 64)
+			end, err := strconv.ParseInt(strand[1], 10, 64)
 			checkError(err)
 
-			go func(genes []gh, strand string) {
-				health := calculateHealth(genes, strand)
-				// fmt.Printf("\n\ngenes: %#v\nstrand: %s\nhealth: %d\n", genes, strand, health)
-				ch <- health
-				wg.Done()
-			}(genes[first:last+1], line[2])
+			go func(genes []string, healths []int, dna string) {
+				defer wg.Done()
+				ch <- calculateHealth(genes, healths, dna)
+			}(genes[start:end+1], healths[start:end+1], strand[2])
 		}
 
 		wg.Wait()
@@ -57,8 +72,7 @@ func Run(reader *bufio.Reader) (min int, max int) {
 
 	for health := range ch {
 		if min == -1 || max == -1 {
-			min = health
-			max = health
+			min, max = health, health
 			continue
 		}
 
@@ -73,46 +87,143 @@ func Run(reader *bufio.Reader) (min int, max int) {
 	return
 }
 
-func newGHSlice(genes, health []string) []gh {
-	var s []gh
-	if len(genes) != len(health) {
-		panic(fmt.Sprintf("got len(genes) = %d, len(health) = %d, want len(genes) == len(health)", len(genes), len(health)))
-	}
-	for i, n := 0, len(genes); i < n; i++ {
-		healthItem, err := strconv.ParseInt(health[i], 10, 64)
-		checkError(err)
+// node is Aho–Corasick trie node.
+type node struct {
+	char        rune // The char this node corresponds to.
+	parent      *node
+	isEndOfWord bool  // True if the node represents the end of a word.
+	matches     []int // The indexes of the found words. len(matches) > 0 only if isEndOfWord == true.
+	children    map[rune]*node
 
-		s = append(s, gh{
-			gene:   genes[i],
-			health: int(healthItem),
-		})
-	}
-	return s
+	strictSuffix *node
+
+	dictSuffix *node
 }
 
-type gh struct {
-	gene   string
-	health int
-}
-
-func calculateHealth(genes []gh, strand string) int {
-	var score int
-	for _, g := range genes {
-		score += countOccurrences(g.gene, strand) * g.health
+func buildTrie(dictionary []string) *node {
+	root := &node{
+		char:     '_',
+		matches:  []int{},
+		children: make(map[rune]*node),
 	}
-	return score
-}
 
-func countOccurrences(gene, strand string) int {
-	n := 0
-	for {
-		i := strings.Index(strand, gene)
-		if i == -1 {
-			return n
+	// Contains pointers to the nodes for each level of the tree.
+	levelNodes := make(
+		[]map[*node]struct{},
+		func() int {
+			var levels int
+			for _, w := range dictionary {
+				if l := len(w); l > levels {
+					levels = l
+				}
+			}
+			return levels
+		}(),
+	)
+
+	// Build the tree.
+	for wordIndex, word := range dictionary {
+		n := root
+		for charIndex, char := range word {
+			c, ok := n.children[char]
+			if !ok {
+				c = &node{
+					char:        char,
+					isEndOfWord: charIndex == len(word)-1,
+					parent:      n,
+					matches:     []int{},
+					children:    make(map[rune]*node),
+				}
+				n.children[char] = c
+			}
+			if charIndex == len(word)-1 {
+				c.isEndOfWord = true
+				c.matches = append(c.matches, wordIndex)
+			}
+
+			if levelNodes[charIndex] == nil {
+				levelNodes[charIndex] = make(map[*node]struct{})
+			}
+			levelNodes[charIndex][c] = struct{}{}
+
+			// c becomes n, so that on the next iteration the node for char is a child of c.
+			n = c
 		}
-		n++
-		strand = strand[i+1:]
 	}
+
+	// Update the strict suffixes.
+	for _, nodes := range levelNodes {
+		for n := range nodes {
+			if n.parent == root {
+				n.strictSuffix = root
+				continue
+			}
+			for p := n.parent.strictSuffix; p != nil; p = p.strictSuffix {
+				if c, ok := p.children[n.char]; ok {
+					n.strictSuffix = c
+				}
+			}
+		}
+	}
+
+	// Update dictionary suffixes.
+	for _, nodes := range levelNodes {
+		for n := range nodes {
+			for p := n.strictSuffix; p != nil; p = p.strictSuffix {
+				if p.isEndOfWord {
+					n.dictSuffix = p
+					break
+				}
+			}
+		}
+	}
+
+	// Update matches of the nodes where node.isEndOfWord = true.
+	for _, nodes := range levelNodes {
+		for n := range nodes {
+			if n.isEndOfWord && n.dictSuffix != nil {
+				n.matches = append(
+					n.matches,
+					n.dictSuffix.matches...,
+				)
+			}
+		}
+	}
+
+	return root
+}
+
+func calculateHealth(genes []string, healths []int, dna string) int {
+	var score int
+	var matches []int // Contains indexes of genes found in dna.
+
+	root := buildTrie(genes)
+
+	n := root
+
+NextChar:
+	for _, char := range dna {
+		if c, ok := n.children[char]; ok {
+			matches = append(matches, c.matches...)
+			n = c
+			continue
+		}
+
+		for n.strictSuffix != nil {
+			n = n.strictSuffix
+			if c, ok := n.children[char]; ok {
+				matches = append(matches, c.matches...)
+				n = c
+				continue NextChar
+			}
+		}
+	}
+
+	for _, i := range matches {
+		score += healths[i]
+	}
+
+	return score
 }
 
 func readLine(reader *bufio.Reader) string {
