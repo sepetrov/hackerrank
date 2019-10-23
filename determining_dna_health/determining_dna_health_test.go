@@ -81,16 +81,17 @@ func BenchmarkRun(b *testing.B) {
 		"testdata/input07.txt",
 	} {
 		b.Run(f, func(b *testing.B) {
-			for n := 0; n < b.N; n++ {
-				f, err := os.Open(f)
-				if err != nil {
-					b.Fatal(err)
-				}
-				defer f.Close() // In case Run() panics before we can close f.
-				buf := bufio.NewReaderSize(f, bufSize)
-				determining_dna_health.Run(buf)
-				f.Close()
+			f, err := os.Open(f)
+			if err != nil {
+				b.Fatal(err)
 			}
+			defer f.Close() // In case Run() panics before we can close f.
+			buf := bufio.NewReaderSize(f, bufSize)
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				determining_dna_health.Run(buf)
+			}
+			f.Close()
 		})
 	}
 }
