@@ -7,4 +7,5 @@ This repository contains my solutions to [HackerRank](https://www.hackerrank.com
 
 ## Index
 
-1. [Determining DNA Health](determining_dna_health)
+- [Determining DNA Health](determining_dna_health) _hard_
+- [New Year Chaos](new_year_chaos) _medium_
