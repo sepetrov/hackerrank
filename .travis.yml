@@ -5,7 +5,7 @@ go:
 
 script:
   - gofmt -d -s .
-  - go test -bench=. ./...
+  - go test -count=1 ./...
 
 notifications:
   email: false
