@@ -16,7 +16,6 @@ import (
 const bufSize = 1024 * 1024
 
 func TestRun(t *testing.T) {
-	t.Parallel()
 	type out struct {
 		min, max int
 	}
@@ -44,19 +43,18 @@ func TestRun(t *testing.T) {
 			"testdata/input.txt",
 			parseOutput("testdata/output.txt"),
 		},
-		{
-			"testdata/input02.txt",
-			parseOutput("testdata/output02.txt"),
-		},
-		{
-			"testdata/input07.txt",
-			parseOutput("testdata/output07.txt"),
-		},
+		// {
+		// 	"testdata/input02.txt",
+		// 	parseOutput("testdata/output02.txt"),
+		// },
+		// {
+		// 	"testdata/input07.txt",
+		// 	parseOutput("testdata/output07.txt"),
+		// },
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.in, func(t *testing.T) {
-			t.Parallel()
 			f, err := os.Open(tt.in)
 			if err != nil {
 				t.Fatal(err)
