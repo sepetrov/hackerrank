@@ -15,36 +15,42 @@ func MatrixRotation(matrix [][]int32, r int32) {
 	l := int(math.Round(math.Min(float64(rows), float64(cols))) / 2.0)
 
 	for i := 0; i < l; i++ {
-		layer := []int32{}
+		layer := make([]int32, 2*(rows-2*i+cols-2*i-2))
+		c := 0
 
 		// Walk the matrix clockwise starting from top left and collect the values
 		// for each layer.
 
 		// top left to top right
 		for j := i; j < cols-i-1; j++ {
-			layer = append(layer, matrix[i][j])
+			layer[c] = matrix[i][j]
+			c++
 		}
 		// top right to bottom right
 		for j := i; j < rows-i-1; j++ {
-			layer = append(layer, matrix[j][cols-i-1])
+			layer[c] = matrix[j][cols-i-1]
+			c++
 		}
 		// bottom right to bottom left
 		for j := cols - i - 1; j > i; j-- {
-			layer = append(layer, matrix[rows-i-1][j])
+			layer[c] = matrix[rows-i-1][j]
+			c++
 		}
 		// bottom left to top left
 		for j := rows - i - 1; j > i; j-- {
-			layer = append(layer, matrix[j][i])
+			layer[c] = matrix[j][i]
+			c++
 		}
 
-		// Left shift layer r times.
-		for j := int32(0); j < r; j++ {
-			layer = append(layer[1:], layer[0])
+		// Left shift values.
+		c = int(r) % len(layer)
+		if c > 0 {
+			layer = append(layer[c:], layer[:c]...)
 		}
 
 		// Populate the matrix with the values from the layer.
 
-		c := 0
+		c = 0
 
 		// top left to top right
 		for j := i; j < cols-i-1; j++ {
