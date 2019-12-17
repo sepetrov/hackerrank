@@ -8,4 +8,5 @@ This repository contains my solutions to [HackerRank](https://www.hackerrank.com
 ## Index
 
 - [Determining DNA Health](determining_dna_health) _hard_
+- [Matrix Layer Rotation](matrix_rotation) _hard_ 
 - [New Year Chaos](new_year_chaos) _medium_
